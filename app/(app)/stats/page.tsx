@@ -117,18 +117,20 @@ export default function StatsPage() {
             className="flex items-center gap-1 px-3 py-2 bg-brand-50 text-brand-700 rounded-xl text-sm font-medium active:bg-brand-100 disabled:opacity-50"
           >
             <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-            更新
+            受信
           </button>
-          {unsyncedCount > 0 && (
-            <button
-              onClick={handleSend}
-              disabled={isSyncing}
-              className="flex items-center gap-1 px-3 py-2 bg-yellow-500 text-white rounded-xl text-sm font-medium active:bg-yellow-600 disabled:opacity-50"
-            >
-              <Send size={16} />
-              未送信{unsyncedCount}件
-            </button>
-          )}
+          <button
+            onClick={handleSend}
+            disabled={isSyncing || unsyncedCount === 0}
+            className={`flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium disabled:opacity-50 ${
+              unsyncedCount > 0
+                ? 'bg-yellow-500 text-white active:bg-yellow-600'
+                : 'bg-gray-100 text-gray-400'
+            }`}
+          >
+            <Send size={16} />
+            {unsyncedCount > 0 ? `未送信${unsyncedCount}件` : '送信'}
+          </button>
         </div>
         {message && (
           <div className="text-sm text-brand-600 font-medium">{message}</div>
