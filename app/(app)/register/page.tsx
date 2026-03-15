@@ -45,14 +45,14 @@ function Calculator({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       {/* 背景 */}
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
-      {/* 電卓本体 */}
-      <div className="relative bg-white rounded-t-3xl shadow-2xl pb-safe">
+      {/* 電卓本体（中央ポップアップ） */}
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
         {/* 表示部 */}
-        <div className="bg-brand-800 rounded-t-3xl px-6 pt-5 pb-4">
+        <div className="bg-brand-800 px-6 pt-5 pb-4">
           <div className="text-right">
             <span className="text-5xl font-bold text-white tabular-nums tracking-tight">
               {input === '' ? '0' : parseInt(input).toLocaleString()}
