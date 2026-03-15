@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getGasUrl, setLoggedIn } from '@/lib/storage';
+import { getGasUrl, setLoggedIn, setUserRole } from '@/lib/storage';
 import { authenticate } from '@/lib/gas';
 
 export default function LoginPage() {
@@ -19,17 +19,20 @@ export default function LoginPage() {
       const gasUrl = getGasUrl();
       if (!gasUrl) {
         // GAS未設定時はオフラインモード（初回セットアップ用）
-        setError('GAS URLが設定されていません。設定後に再試行してください。\n（初回のみ：IDを"ipad1"、パスを"ddhouse"で仮ログインできます）');
-        // fallback: hardcoded initial credentials
-        if (id === 'ipad1' && pass === 'ddhouse') {
+        const FALLBACK: Record<string, string> = { ipad1: 'ddhouse', kanrisha: 'ddhouse' };
+        if (FALLBACK[id] === pass) {
           setLoggedIn();
+          setUserRole(id);
           router.replace('/register');
+        } else {
+          setError('GAS URLが設定されていません。設定後に再試行してください。\n（初回のみ：IDを"ipad1"、パスを"ddhouse"で仮ログインできます）');
         }
         return;
       }
       const ok = await authenticate(gasUrl, id, pass);
       if (ok) {
         setLoggedIn();
+        setUserRole(id);
         router.replace('/register');
       } else {
         setError('IDまたはパスワードが違います');

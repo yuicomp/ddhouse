@@ -230,26 +230,59 @@ export default function StatsPage() {
         {/* 賞集計 */}
         {subTab === 'prizes' && (
           <div className="space-y-3">
+            {/* 割合バーチャート */}
             <div className="bg-white rounded-2xl shadow-sm p-4">
-              <h3 className="font-bold text-gray-700 mb-3">賞の合計</h3>
-              <div className="space-y-3">
-                {prizes.sort((a, b) => a.order - b.order).map((p) => (
-                  <div key={p.prize_id} className="flex items-center justify-between py-2 border-b border-gray-50">
-                    <span className="font-medium text-gray-700">{p.name}</span>
-                    <span className="text-2xl font-bold text-brand-600 tabular-nums">
-                      {prizeData.map[p.prize_id] || 0}回
-                    </span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-gray-400">ハズレ</span>
-                  <span className="text-2xl font-bold text-gray-400 tabular-nums">
-                    {Math.max(0, prizeData.miss)}回
-                  </span>
+              <h3 className="font-bold text-gray-700 mb-4">賞ごとの割合</h3>
+              {prizeData.totalSlots === 0 ? (
+                <p className="text-center text-gray-400 py-4">データなし</p>
+              ) : (
+                <div className="space-y-4">
+                  {prizes.sort((a, b) => a.order - b.order).map((p) => {
+                    const cnt = prizeData.map[p.prize_id] || 0;
+                    const pct = prizeData.totalSlots > 0 ? (cnt / prizeData.totalSlots) * 100 : 0;
+                    return (
+                      <div key={p.prize_id}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-sm font-medium text-gray-700">{p.name}</span>
+                          <span className="text-sm font-bold text-brand-600 tabular-nums">
+                            {cnt}回 <span className="text-gray-400 font-normal">({pct.toFixed(1)}%)</span>
+                          </span>
+                        </div>
+                        <div className="bg-gray-100 rounded-full h-6 overflow-hidden">
+                          <div
+                            className="bg-brand-500 h-full rounded-full transition-all"
+                            style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* ハズレ */}
+                  {(() => {
+                    const cnt = Math.max(0, prizeData.miss);
+                    const pct = prizeData.totalSlots > 0 ? (cnt / prizeData.totalSlots) * 100 : 0;
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-sm font-medium text-gray-400">ハズレ</span>
+                          <span className="text-sm font-bold text-gray-400 tabular-nums">
+                            {cnt}回 <span className="font-normal">({pct.toFixed(1)}%)</span>
+                          </span>
+                        </div>
+                        <div className="bg-gray-100 rounded-full h-6 overflow-hidden">
+                          <div
+                            className="bg-gray-300 h-full rounded-full transition-all"
+                            style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-              </div>
+              )}
             </div>
 
+            {/* 総合計 */}
             <div className="bg-white rounded-2xl shadow-sm p-4 space-y-2">
               <h3 className="font-bold text-gray-700 mb-2">総合計</h3>
               <div className="flex justify-between">
@@ -259,14 +292,6 @@ export default function StatsPage() {
               <div className="flex justify-between">
                 <span className="text-gray-500">当選総数</span>
                 <span className="font-bold text-brand-600 tabular-nums">{prizeData.totalWins}回</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">当選率</span>
-                <span className="font-bold tabular-nums">
-                  {prizeData.totalSlots > 0
-                    ? ((prizeData.totalWins / prizeData.totalSlots) * 100).toFixed(1)
-                    : 0}%
-                </span>
               </div>
             </div>
           </div>

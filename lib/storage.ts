@@ -10,6 +10,7 @@ const KEY = {
   PRIZES: 'ddh_prizes',
   GAS_URL: 'ddh_gas_url',
   LOGGED_IN: 'ddh_logged_in',
+  USER_ROLE: 'ddh_user_role',
 };
 
 function generateId(): string {
@@ -120,6 +121,19 @@ export function setLoggedIn(): void {
   localStorage.setItem(KEY.LOGGED_IN, '1');
 }
 
+export function setUserRole(id: string): void {
+  localStorage.setItem(KEY.USER_ROLE, id);
+}
+
+export function getUserRole(): string {
+  return localStorage.getItem(KEY.USER_ROLE) || '';
+}
+
+export function isAdmin(): boolean {
+  return localStorage.getItem(KEY.USER_ROLE) === 'kanrisha';
+}
+
 export function clearSession(): void {
   localStorage.removeItem(KEY.LOGGED_IN);
+  localStorage.removeItem(KEY.USER_ROLE);
 }

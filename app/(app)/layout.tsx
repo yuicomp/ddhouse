@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { AppProvider } from '@/contexts/AppContext';
@@ -7,10 +7,16 @@ import { ClipboardList, BarChart2, Settings } from 'lucide-react';
 
 function BottomNav() {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    setIsAdmin(localStorage.getItem('ddh_user_role') === 'kanrisha');
+  }, [pathname]); // pathnameが変わるたびに再チェック
+
   const tabs = [
     { href: '/register', label: '登録', Icon: ClipboardList },
     { href: '/stats', label: '集計', Icon: BarChart2 },
-    { href: '/settings', label: '設定', Icon: Settings },
+    ...(isAdmin ? [{ href: '/settings', label: '設定', Icon: Settings }] : []),
   ];
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-brand-100 safe-bottom z-50">
@@ -40,11 +46,17 @@ function BottomNav() {
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   useEffect(() => {
     if (localStorage.getItem('ddh_logged_in') !== '1') {
       router.replace('/login');
+      return;
     }
-  }, [router]);
+    // 設定ページは管理者のみ
+    if (pathname === '/settings' && localStorage.getItem('ddh_user_role') !== 'kanrisha') {
+      router.replace('/register');
+    }
+  }, [router, pathname]);
   return <>{children}</>;
 }
 
