@@ -59,7 +59,7 @@ export default function SettingsPage() {
   const today = useMemo(() => todayJST(), []);
   const todayLogs = useMemo(() => logs.filter((l) => l.timestamp.startsWith(today)), [logs, today]);
   const hoursWithData = useMemo(
-    () => [...new Set(todayLogs.map((l) => getHourJST(l.timestamp)))].sort(),
+    () => Array.from(new Set(todayLogs.map((l) => getHourJST(l.timestamp)))).sort(),
     [todayLogs]
   );
 
