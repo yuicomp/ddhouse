@@ -1,9 +1,21 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { INITIAL_SHOPS } from '@/lib/initial-shops';
 import { Shop, Prize, Floor } from '@/lib/types';
-import { Trash2, Plus, LogOut, RefreshCw } from 'lucide-react';
+import { Trash2, Plus, LogOut, RefreshCw, AlertTriangle } from 'lucide-react';
+
+function todayJST(): string {
+  return new Date().toLocaleDateString('ja-JP', {
+    timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).replace(/\//g, '-');
+}
+function getHourJST(ts: string): string {
+  return new Date(ts)
+    .toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit' })
+    .replace('時', '')
+    .padStart(2, '0');
+}
 
 const FLOORS: Floor[] = ['B1F', '1F', '2F', '3F'];
 
@@ -20,9 +32,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function SettingsPage() {
   const {
-    deviceId, deviceLabel, gasUrl, shops, prizes,
+    deviceId, deviceLabel, gasUrl, shops, prizes, logs,
     setDeviceLabel, setGasUrl, updateShop, deleteShop, setShops,
-    setPrizes, fetchRemoteSettings, isSyncing, logout,
+    setPrizes, fetchRemoteSettings, isSyncing, logout, deleteLogs,
   } = useApp();
 
   const [labelInput, setLabelInput] = useState(deviceLabel);
@@ -37,6 +49,49 @@ export default function SettingsPage() {
 
   // Prize edit state
   const [newPrizeName, setNewPrizeName] = useState('');
+
+  // Data management state
+  const [deleteState, setDeleteState] = useState<'idle' | 'confirm_today' | 'confirm_hour'>('idle');
+  const [deleteHour, setDeleteHour] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState('');
+
+  const today = useMemo(() => todayJST(), []);
+  const todayLogs = useMemo(() => logs.filter((l) => l.timestamp.startsWith(today)), [logs, today]);
+  const hoursWithData = useMemo(
+    () => [...new Set(todayLogs.map((l) => getHourJST(l.timestamp)))].sort(),
+    [todayLogs]
+  );
+
+  async function handleDeleteToday() {
+    const ids = todayLogs.map((l) => l.log_id);
+    if (ids.length === 0) return;
+    setIsDeleting(true);
+    try {
+      const result = await deleteLogs(ids);
+      setDeleteMsg(result.error ? `⚠️ スプシエラー: ${result.error}（ローカルは削除済み）` : `✅ ${ids.length}件を削除しました`);
+    } finally {
+      setIsDeleting(false);
+      setDeleteState('idle');
+      setTimeout(() => setDeleteMsg(''), 5000);
+    }
+  }
+
+  async function handleDeleteHour() {
+    const hourLogs = todayLogs.filter((l) => getHourJST(l.timestamp) === deleteHour);
+    const ids = hourLogs.map((l) => l.log_id);
+    if (ids.length === 0) return;
+    setIsDeleting(true);
+    try {
+      const result = await deleteLogs(ids);
+      setDeleteMsg(result.error ? `⚠️ スプシエラー: ${result.error}（ローカルは削除済み）` : `✅ ${ids.length}件を削除しました`);
+      setDeleteHour('');
+    } finally {
+      setIsDeleting(false);
+      setDeleteState('idle');
+      setTimeout(() => setDeleteMsg(''), 5000);
+    }
+  }
 
   useEffect(() => { setLabelInput(deviceLabel); }, [deviceLabel]);
   useEffect(() => { setGasInput(gasUrl); }, [gasUrl]);
@@ -255,6 +310,123 @@ export default function SettingsPage() {
           <button onClick={handleResetShops} className="text-xs text-gray-400 underline">
             初期データにリセット
           </button>
+        </div>
+      </Section>
+
+      {/* データ管理 */}
+      <Section title="データ管理（テスト用）">
+        <div className="space-y-5">
+          {deleteMsg && (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 font-medium">
+              {deleteMsg}
+            </div>
+          )}
+
+          {/* 本日のデータを全て削除 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-sm font-medium text-gray-700">本日のデータを全て削除</p>
+                <p className="text-xs text-gray-400 mt-0.5">本日 {todayLogs.length}件のログ</p>
+              </div>
+              <button
+                onClick={() => { setDeleteState('confirm_today'); }}
+                disabled={todayLogs.length === 0 || isDeleting}
+                className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-200 active:bg-red-100 disabled:opacity-40"
+              >
+                全削除
+              </button>
+            </div>
+            {deleteState === 'confirm_today' && (
+              <div className="bg-red-50 border border-red-300 rounded-xl p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={16} className="text-red-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-red-700 font-bold">本当に削除しますか？</p>
+                    <p className="text-xs text-red-600 mt-1">本日の全ログ {todayLogs.length}件を削除します。スプレッドシートからも即座に削除され、元に戻せません。</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDeleteState('idle')}
+                    disabled={isDeleting}
+                    className="flex-1 py-2.5 bg-white text-gray-600 rounded-xl text-sm font-medium border border-gray-300"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleDeleteToday}
+                    disabled={isDeleting}
+                    className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold disabled:opacity-50"
+                  >
+                    {isDeleting ? '削除中...' : '削除する'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 時間を指定して削除 */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">時間を指定して削除</p>
+            {hoursWithData.length === 0 ? (
+              <p className="text-xs text-gray-400">本日のログがありません</p>
+            ) : (
+              <>
+                <div className="flex gap-2 mb-2">
+                  <select
+                    value={deleteHour}
+                    onChange={(e) => { setDeleteHour(e.target.value); setDeleteState('idle'); }}
+                    className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand-500"
+                  >
+                    <option value="">時間を選択</option>
+                    {hoursWithData.map((h) => {
+                      const cnt = todayLogs.filter((l) => getHourJST(l.timestamp) === h).length;
+                      return (
+                        <option key={h} value={h}>{h}:00〜{h}:59（{cnt}件）</option>
+                      );
+                    })}
+                  </select>
+                  <button
+                    onClick={() => deleteHour && setDeleteState('confirm_hour')}
+                    disabled={!deleteHour || isDeleting}
+                    className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-200 active:bg-red-100 disabled:opacity-40"
+                  >
+                    削除
+                  </button>
+                </div>
+                {deleteState === 'confirm_hour' && deleteHour && (
+                  <div className="bg-red-50 border border-red-300 rounded-xl p-4 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={16} className="text-red-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm text-red-700 font-bold">本当に削除しますか？</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {deleteHour}:00〜{deleteHour}:59 の {todayLogs.filter((l) => getHourJST(l.timestamp) === deleteHour).length}件を削除します。スプレッドシートからも即座に削除され、元に戻せません。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setDeleteState('idle')}
+                        disabled={isDeleting}
+                        className="flex-1 py-2.5 bg-white text-gray-600 rounded-xl text-sm font-medium border border-gray-300"
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        onClick={handleDeleteHour}
+                        disabled={isDeleting}
+                        className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold disabled:opacity-50"
+                      >
+                        {isDeleting ? '削除中...' : '削除する'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </Section>
 

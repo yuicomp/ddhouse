@@ -36,6 +36,7 @@ function doPost(e) {
   try {
     switch (data.action) {
       case 'appendLogs':    result = handleAppendLogs(data.logs); break;
+      case 'deleteLogs':    result = handleDeleteLogs(data.log_ids); break;
       case 'updateStore':   result = handleUpdateStore(data.store); break;
       case 'deleteStore':   result = handleDeleteStore(data.store_id); break;
       case 'updatePrizes':  result = handleUpdatePrizes(data.prizes); break;
@@ -223,6 +224,40 @@ function handleAppendLogs(logs) {
     }
 
     return { success: true, added: newRows.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ---- ログ削除 ----
+
+function handleDeleteLogs(logIds) {
+  var lock = LockService.getScriptLock();
+  lock.tryLock(15000);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET.LOGS);
+    if (!sheet) return { success: true, deleted: 0 };
+
+    var idsToDelete = {};
+    for (var i = 0; i < logIds.length; i++) {
+      idsToDelete[String(logIds[i])] = true;
+    }
+
+    var data = sheet.getDataRange().getValues();
+    var rowsToDelete = [];
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0] && idsToDelete[String(data[i][0])]) {
+        rowsToDelete.push(i + 1); // 1-indexed
+      }
+    }
+
+    // 下から削除してインデックスがずれないようにする
+    for (var i = rowsToDelete.length - 1; i >= 0; i--) {
+      sheet.deleteRow(rowsToDelete[i]);
+    }
+
+    return { success: true, deleted: rowsToDelete.length };
   } finally {
     lock.releaseLock();
   }

@@ -26,6 +26,7 @@ interface AppContextValue {
   deleteShop: (storeId: string) => void;
   setShops: (shops: Shop[]) => void;
   setPrizes: (prizes: Prize[]) => void;
+  deleteLogs: (logIds: string[]) => Promise<{ deleted: number; error?: string }>;
   logout: () => void;
 }
 
@@ -169,6 +170,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (gasUrl) gas.updatePrizes(gasUrl, p).catch(() => {});
   }, [gasUrl]);
 
+  const deleteLogs = useCallback(async (logIds: string[]) => {
+    let gasError: string | undefined;
+    if (gasUrl) {
+      setIsSyncing(true);
+      try {
+        const result = await gas.deleteLogs(gasUrl, logIds);
+        if (result.error) gasError = result.error;
+      } catch (e) {
+        gasError = String(e);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+    // ローカルからは常に削除
+    storage.deleteLogsById(logIds);
+    setLogsState(storage.getLogs());
+    return { deleted: logIds.length, error: gasError };
+  }, [gasUrl]);
+
   const logout = useCallback(() => {
     storage.clearSession();
     window.location.href = '/login';
@@ -180,7 +200,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deviceId, deviceLabel, gasUrl, shops, prizes, logs,
         isSyncing, lastSyncedAt,
         setDeviceLabel, setGasUrl, addLog, syncLogs, fetchRemoteLogs,
-        fetchRemoteSettings, updateShop, deleteShop, setShops, setPrizes, logout,
+        fetchRemoteSettings, updateShop, deleteShop, setShops, setPrizes, deleteLogs, logout,
       }}
     >
       {children}

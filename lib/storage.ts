@@ -58,6 +58,12 @@ export function markLogsAsSynced(logIds: string[]): void {
   localStorage.setItem(KEY.LOGS, JSON.stringify(logs));
 }
 
+export function deleteLogsById(logIds: string[]): void {
+  const ids = new Set(logIds);
+  const remaining = getLogs().filter((l) => !ids.has(l.log_id));
+  localStorage.setItem(KEY.LOGS, JSON.stringify(remaining));
+}
+
 export function mergeRemoteLogs(remoteLogs: LogEntry[]): number {
   const logs = getLogs();
   const existingIds = new Set(logs.map((l) => l.log_id));

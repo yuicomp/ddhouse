@@ -29,6 +29,8 @@ export default function StatsPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [subTab, setSubTab] = useState<SubTab>('logs');
   const [message, setMessage] = useState('');
+  const [hourlyMode, setHourlyMode] = useState<'count' | 'slots'>('count');
+  const [storeMode, setStoreMode] = useState<'count' | 'slots'>('count');
 
   // Filter logs for selected date
   const filteredLogs = useMemo(
@@ -59,10 +61,12 @@ export default function StatsPage() {
 
   // Hourly stats
   const hourlyData = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { count: number; slots: number }> = {};
     filteredLogs.forEach((l) => {
       const h = getHourJST(l.timestamp);
-      map[h] = (map[h] || 0) + 1;
+      if (!map[h]) map[h] = { count: 0, slots: 0 };
+      map[h].count++;
+      map[h].slots += l.slot_count;
     });
     return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredLogs]);
@@ -75,8 +79,10 @@ export default function StatsPage() {
       map[l.store_id].count++;
       map[l.store_id].slots += l.slot_count;
     });
-    return Object.values(map).sort((a, b) => b.count - a.count);
-  }, [filteredLogs]);
+    return Object.values(map).sort((a, b) =>
+      storeMode === 'count' ? b.count - a.count : b.slots - a.slots
+    );
+  }, [filteredLogs, storeMode]);
 
   // Prize stats
   const prizeData = useMemo(() => {
@@ -91,7 +97,7 @@ export default function StatsPage() {
     return { map, totalSlots, totalWins, miss: totalSlots - totalWins };
   }, [filteredLogs]);
 
-  const maxHourly = Math.max(...hourlyData.map(([, c]) => c), 1);
+  const maxHourly = Math.max(...hourlyData.map(([, d]) => hourlyMode === 'count' ? d.count : d.slots), 1);
 
   return (
     <div className="flex flex-col h-full">
@@ -188,29 +194,66 @@ export default function StatsPage() {
 
         {/* 時間別 */}
         {subTab === 'hourly' && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-2">
-            <h3 className="font-bold text-gray-700 mb-3">1時間ごとの登録件数</h3>
-            {hourlyData.length === 0 && <p className="text-center text-gray-400 py-6">データなし</p>}
-            {hourlyData.map(([hour, count]) => (
-              <div key={hour} className="flex items-center gap-3">
-                <span className="w-14 text-sm text-gray-500 tabular-nums text-right">{hour}:00〜</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-7 overflow-hidden">
-                  <div
-                    className="bg-brand-500 h-full rounded-full flex items-center px-2 transition-all"
-                    style={{ width: `${(count / maxHourly) * 100}%`, minWidth: '2rem' }}
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-gray-700">1時間ごとの集計</h3>
+              <div className="flex gap-1 bg-gray-100 rounded-xl p-0.5">
+                {(['count', 'slots'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setHourlyMode(mode)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
+                      hourlyMode === mode ? 'bg-white text-brand-700 shadow' : 'text-gray-500'
+                    }`}
                   >
-                    <span className="text-white text-xs font-bold">{count}</span>
-                  </div>
-                </div>
+                    {mode === 'count' ? '登録件数' : 'スロット回数'}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
+            <div className="space-y-2">
+              {hourlyData.length === 0 && <p className="text-center text-gray-400 py-6">データなし</p>}
+              {hourlyData.map(([hour, data]) => {
+                const value = hourlyMode === 'count' ? data.count : data.slots;
+                const sub   = hourlyMode === 'count' ? `${data.slots}回` : `${data.count}件`;
+                return (
+                  <div key={hour} className="flex items-center gap-3">
+                    <span className="w-14 text-sm text-gray-500 tabular-nums text-right">{hour}:00〜</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-7 overflow-hidden">
+                      <div
+                        className="bg-brand-500 h-full rounded-full flex items-center px-2 transition-all"
+                        style={{ width: `${(value / maxHourly) * 100}%`, minWidth: '2.5rem' }}
+                      >
+                        <span className="text-white text-xs font-bold whitespace-nowrap">{value}</span>
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400 tabular-nums w-10 text-right">{sub}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
         {/* 店舗別 */}
         {subTab === 'stores' && (
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <h3 className="font-bold text-gray-700 p-4 pb-2">店舗ごとの来客数</h3>
+            <div className="flex items-center justify-between p-4 pb-2">
+              <h3 className="font-bold text-gray-700">店舗ごとの集計</h3>
+              <div className="flex gap-1 bg-gray-100 rounded-xl p-0.5">
+                {(['count', 'slots'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setStoreMode(mode)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
+                      storeMode === mode ? 'bg-white text-brand-700 shadow' : 'text-gray-500'
+                    }`}
+                  >
+                    {mode === 'count' ? '登録件数' : 'スロット回数'}
+                  </button>
+                ))}
+              </div>
+            </div>
             {storeData.length === 0 && <p className="text-center text-gray-400 py-6">データなし</p>}
             {storeData.map((s, i) => (
               <div key={i} className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
@@ -219,8 +262,17 @@ export default function StatsPage() {
                   <div className="text-xs text-gray-400">{s.floor}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-brand-600">{s.count}件</div>
-                  <div className="text-xs text-gray-400">計{s.slots}回</div>
+                  {storeMode === 'count' ? (
+                    <>
+                      <div className="font-bold text-brand-600">{s.count}件</div>
+                      <div className="text-xs text-gray-400">計{s.slots}回</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-bold text-brand-600">{s.slots}回</div>
+                      <div className="text-xs text-gray-400">{s.count}件来店</div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

@@ -84,3 +84,16 @@ export async function updatePrizes(gasUrl: string, prizes: Prize[]): Promise<boo
     return false;
   }
 }
+
+export async function deleteLogs(
+  gasUrl: string,
+  logIds: string[]
+): Promise<{ deleted: number; error?: string }> {
+  try {
+    const data = await call('POST', gasUrl, { action: 'deleteLogs', log_ids: logIds });
+    if (data.success) return { deleted: data.deleted ?? 0 };
+    return { deleted: 0, error: data.error };
+  } catch (e) {
+    return { deleted: 0, error: String(e) };
+  }
+}
