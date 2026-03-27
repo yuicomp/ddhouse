@@ -3,7 +3,21 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { AppProvider } from '@/contexts/AppContext';
-import { ClipboardList, BarChart2, Settings } from 'lucide-react';
+import { clearSession } from '@/lib/storage';
+import { ClipboardList, BarChart2, Settings, LogOut } from 'lucide-react';
+
+function LogoutButton() {
+  const router = useRouter();
+  const handleLogout = () => {
+    clearSession();
+    router.replace('/login');
+  };
+  return (
+    <button onClick={handleLogout} className="flex items-center gap-1 text-brand-200 hover:text-white transition-colors p-1">
+      <LogOut size={20} strokeWidth={1.8} />
+    </button>
+  );
+}
 
 function BottomNav() {
   const pathname = usePathname();
@@ -71,6 +85,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="font-bold text-lg tracking-wide leading-tight">D.D.HOUSE</div>
               <div className="text-brand-200 text-xs leading-tight">スロット集計</div>
             </div>
+            <LogoutButton />
           </header>
 
           {/* Content */}
