@@ -3,8 +3,11 @@ import { useState, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import type { LogEntry } from '@/lib/types';
 import { RefreshCw, Send } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
-type SubTab = 'logs' | 'hourly' | 'stores' | 'prizes';
+type SubTab = 'logs' | 'hourly' | 'stores' | 'prizes' | 'qr';
+
+const REGISTER_URL = 'https://ddhouse-flax.vercel.app/register';
 
 function toTimeJST(isoStr: string) {
   return new Date(isoStr).toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' });
@@ -138,7 +141,7 @@ export default function StatsPage() {
 
         {/* Sub-tabs */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-          {([['logs', '全ログ'], ['hourly', '時間別'], ['stores', '店舗別'], ['prizes', '賞集計']] as [SubTab, string][]).map(([key, label]) => (
+          {([['logs', '全ログ'], ['hourly', '時間別'], ['stores', '店舗別'], ['prizes', '賞集計'], ['qr', 'QR']] as [SubTab, string][]).map(([key, label]) => (
             <button
               key={key}
               onClick={() => setSubTab(key)}
@@ -348,6 +351,14 @@ export default function StatsPage() {
                 <span className="font-bold text-brand-600 tabular-nums">{prizeData.totalWins}回</span>
               </div>
             </div>
+          </div>
+        )}
+        {/* QR */}
+        {subTab === 'qr' && (
+          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center gap-4">
+            <h3 className="font-bold text-gray-700 text-lg">登録画面を開く</h3>
+            <QRCodeSVG value={REGISTER_URL} size={220} />
+            <p className="text-sm text-gray-500 text-center break-all">{REGISTER_URL}</p>
           </div>
         )}
       </div>
