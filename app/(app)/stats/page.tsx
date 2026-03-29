@@ -2,7 +2,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import type { LogEntry } from '@/lib/types';
-import { RefreshCw, Send, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { RefreshCw, Send, ChevronLeft, ChevronRight, ChevronDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 type SubTab = 'logs' | 'hourly' | 'stores' | 'prizes';
 type HourlyBreakdown = 'none' | 'store' | 'floor' | 'prize';
@@ -591,6 +592,141 @@ export default function StatsPage() {
 
   const maxHourly = Math.max(...hourlyData.map(([, d]) => hourlyMode === 'count' ? d.count : d.slots), 1);
 
+  // ── Excelエクスポート ──────────────────────────────────────────────────────
+  function exportToExcel() {
+    const sortedPrizes = [...prizes].sort((a, b) => a.order - b.order);
+    let sheetData: (string | number)[][] = [];
+    let sheetName = '';
+
+    if (subTab === 'logs') {
+      sheetName = '全ログ';
+      sheetData = [
+        ['時刻', '店舗', 'フロア', 'レシート金額(円)', 'スロット回数', ...sortedPrizes.map(p => p.name), '同期状態'],
+        ...filteredLogs.map(l => [
+          toTimeJST(l.timestamp),
+          l.store_name,
+          l.floor,
+          l.receipt_amount,
+          l.slot_count,
+          ...sortedPrizes.map(p => l.prizes[p.prize_id] || 0),
+          l.from_remote ? '他端末' : l.synced ? '送信済' : '未送信',
+        ]),
+      ];
+
+    } else if (subTab === 'hourly') {
+      if (hourlyBreakdown === 'none') {
+        sheetName = '時間別';
+        sheetData = [
+          ['時間帯', '登録件数', 'スロット回数'],
+          ...hourlyData.map(([h, d]) => [`${h}:00〜`, d.count, d.slots]),
+          ['合計', filteredLogs.length, filteredLogs.reduce((a, b) => a + b.slot_count, 0)],
+        ];
+      } else if ((hourlyBreakdown === 'store' || hourlyBreakdown === 'floor') && hourlyCrossTab) {
+        sheetName = `時間別_${hourlyBreakdown === 'store' ? '店舗別' : 'フロア別'}`;
+        const { rows, cols, cells } = hourlyCrossTab;
+        const get = (r: string, c: string) => { const v = cells[r]?.[c]; return v ? (hourlyMode === 'count' ? v.count : v.slots) : 0; };
+        sheetData = [
+          ['時間帯', ...cols, '合計'],
+          ...rows.map(r => [`${r}:00〜`, ...cols.map(c => get(r, c)), cols.reduce((s, c) => s + get(r, c), 0)]),
+          ['合計', ...cols.map(c => rows.reduce((s, r) => s + get(r, c), 0)), rows.reduce((s, r) => s + cols.reduce((ss, c) => ss + get(r, c), 0), 0)],
+        ];
+      } else if (hourlyBreakdown === 'prize' && hourlyPrizeCrossTab) {
+        sheetName = '時間別_賞別';
+        const { rows, cells, rowSlots } = hourlyPrizeCrossTab;
+        sheetData = [
+          ['時間帯', ...sortedPrizes.map(p => p.name), 'ハズレ', 'スロット合計'],
+          ...rows.map(r => {
+            const wins = sortedPrizes.reduce((s, p) => s + (cells[r.key]?.[p.prize_id] || 0), 0);
+            return [r.label, ...sortedPrizes.map(p => cells[r.key]?.[p.prize_id] || 0), Math.max(0, (rowSlots[r.key] || 0) - wins), rowSlots[r.key] || 0];
+          }),
+          ['合計',
+            ...sortedPrizes.map(p => rows.reduce((s, r) => s + (cells[r.key]?.[p.prize_id] || 0), 0)),
+            rows.reduce((s, r) => { const w = sortedPrizes.reduce((ss, p) => ss + (cells[r.key]?.[p.prize_id] || 0), 0); return s + Math.max(0, (rowSlots[r.key] || 0) - w); }, 0),
+            rows.reduce((s, r) => s + (rowSlots[r.key] || 0), 0),
+          ],
+        ];
+      }
+
+    } else if (subTab === 'stores') {
+      if (storeBreakdown === 'none') {
+        sheetName = '店舗別';
+        sheetData = [
+          ['店舗', 'フロア', '登録件数', 'スロット回数'],
+          ...storeData.map(s => [s.name, s.floor, s.count, s.slots]),
+          ['合計', '', storeData.reduce((a, s) => a + s.count, 0), storeData.reduce((a, s) => a + s.slots, 0)],
+        ];
+      } else if (storeBreakdown === 'hour' && storeCrossTab) {
+        sheetName = '店舗別_時間別';
+        const { rows, cols, cells } = storeCrossTab;
+        const get = (r: string, c: string) => { const v = cells[r]?.[c]; return v ? (storeMode === 'count' ? v.count : v.slots) : 0; };
+        sheetData = [
+          ['店舗', ...cols, '合計'],
+          ...rows.map(r => [r, ...cols.map(c => get(r, c)), cols.reduce((s, c) => s + get(r, c), 0)]),
+          ['合計', ...cols.map(c => rows.reduce((s, r) => s + get(r, c), 0)), rows.reduce((s, r) => s + cols.reduce((ss, c) => ss + get(r, c), 0), 0)],
+        ];
+      } else if (storeBreakdown === 'floor' && storeByFloor) {
+        sheetName = '店舗別_フロア別';
+        sheetData = [['フロア', '店舗', '登録件数', 'スロット回数']];
+        storeByFloor.forEach(({ floor, stores }) => {
+          stores.forEach(s => sheetData.push([floor, s.name, s.count, s.slots]));
+        });
+        sheetData.push(['合計', '', storeData.reduce((a, s) => a + s.count, 0), storeData.reduce((a, s) => a + s.slots, 0)]);
+      } else if (storeBreakdown === 'prize' && storePrizeCrossTab) {
+        sheetName = '店舗別_賞別';
+        const { rows, cells, rowSlots } = storePrizeCrossTab;
+        sheetData = [
+          ['店舗', ...sortedPrizes.map(p => p.name), 'ハズレ', 'スロット合計'],
+          ...rows.map(r => {
+            const wins = sortedPrizes.reduce((s, p) => s + (cells[r.key]?.[p.prize_id] || 0), 0);
+            return [r.label, ...sortedPrizes.map(p => cells[r.key]?.[p.prize_id] || 0), Math.max(0, (rowSlots[r.key] || 0) - wins), rowSlots[r.key] || 0];
+          }),
+          ['合計',
+            ...sortedPrizes.map(p => rows.reduce((s, r) => s + (cells[r.key]?.[p.prize_id] || 0), 0)),
+            rows.reduce((s, r) => { const w = sortedPrizes.reduce((ss, p) => ss + (cells[r.key]?.[p.prize_id] || 0), 0); return s + Math.max(0, (rowSlots[r.key] || 0) - w); }, 0),
+            rows.reduce((s, r) => s + (rowSlots[r.key] || 0), 0),
+          ],
+        ];
+      }
+
+    } else if (subTab === 'prizes') {
+      const prizeRows = [...sortedPrizes.map(p => ({ id: p.prize_id, name: p.name })), { id: 'miss', name: 'ハズレ' }];
+      if (prizeBreakdown === 'none') {
+        sheetName = '賞集計';
+        sheetData = [
+          ['賞', '回数', '割合(%)'],
+          ...sortedPrizes.map(p => {
+            const cnt = prizeData.map[p.prize_id] || 0;
+            return [p.name, cnt, prizeData.totalSlots > 0 ? parseFloat((cnt / prizeData.totalSlots * 100).toFixed(1)) : 0];
+          }),
+          ['ハズレ', Math.max(0, prizeData.miss), prizeData.totalSlots > 0 ? parseFloat((Math.max(0, prizeData.miss) / prizeData.totalSlots * 100).toFixed(1)) : 0],
+          ['スロット合計', prizeData.totalSlots, 100],
+        ];
+      } else if ((prizeBreakdown === 'store' || prizeBreakdown === 'floor') && prizeCrossTab) {
+        sheetName = `賞集計_${prizeBreakdown === 'store' ? '店舗別' : 'フロア別'}`;
+        const { cols, cells } = prizeCrossTab;
+        sheetData = [
+          ['賞', ...cols, '合計'],
+          ...prizeRows.map(p => [p.name, ...cols.map(c => cells[p.id]?.[c] || 0), cols.reduce((s, c) => s + (cells[p.id]?.[c] || 0), 0)]),
+          ['合計', ...cols.map(c => prizeRows.reduce((s, p) => s + (cells[p.id]?.[c] || 0), 0)), prizeRows.reduce((s, p) => s + cols.reduce((ss, c) => ss + (cells[p.id]?.[c] || 0), 0), 0)],
+        ];
+      } else if (prizeBreakdown === 'hour' && prizeHourlyCrossTab) {
+        sheetName = '賞集計_時間別';
+        const { cols, cells } = prizeHourlyCrossTab;
+        sheetData = [
+          ['賞', ...cols, '合計'],
+          ...prizeRows.map(p => [p.name, ...cols.map(c => cells[p.id]?.[c] || 0), cols.reduce((s, c) => s + (cells[p.id]?.[c] || 0), 0)]),
+          ['合計', ...cols.map(c => prizeRows.reduce((s, p) => s + (cells[p.id]?.[c] || 0), 0)), prizeRows.reduce((s, p) => s + cols.reduce((ss, c) => ss + (cells[p.id]?.[c] || 0), 0), 0)],
+        ];
+      }
+    }
+
+    if (sheetData.length === 0) return;
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, `ddhouse_${selectedDate}_${sheetName}.xlsx`);
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Controls */}
@@ -656,9 +792,17 @@ export default function StatsPage() {
       </div>
 
       {/* Summary bar */}
-      <div className="bg-brand-50 px-4 py-2 flex gap-4 text-sm flex-shrink-0">
+      <div className="bg-brand-50 px-4 py-2 flex items-center gap-4 text-sm flex-shrink-0">
         <span className="text-gray-600">登録 <b className="text-brand-700">{filteredLogs.length}件</b></span>
         <span className="text-gray-600">スロット <b className="text-brand-700">{filteredLogs.reduce((a, b) => a + b.slot_count, 0)}回</b></span>
+        <button
+          onClick={exportToExcel}
+          disabled={filteredLogs.length === 0}
+          className="ml-auto flex items-center gap-1 px-3 py-1 bg-white text-gray-600 rounded-lg text-xs font-medium border border-gray-200 active:bg-gray-50 disabled:opacity-40"
+        >
+          <Download size={13} />
+          エクスポート
+        </button>
       </div>
 
       {/* Content */}
