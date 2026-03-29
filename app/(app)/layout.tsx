@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { AppProvider } from '@/contexts/AppContext';
 import { clearSession } from '@/lib/storage';
-import { ClipboardList, BarChart2, Settings, LogOut } from 'lucide-react';
+import { ClipboardList, BarChart2, Settings, LogOut, Link2 } from 'lucide-react';
 
 function LogoutButton() {
   const router = useRouter();
@@ -30,6 +30,7 @@ function BottomNav() {
   const tabs = [
     { href: '/register', label: '登録', Icon: ClipboardList },
     { href: '/stats', label: '集計', Icon: BarChart2 },
+    { href: '/links', label: 'リンク', Icon: Link2 },
     ...(isAdmin ? [{ href: '/settings', label: '設定', Icon: Settings }] : []),
   ];
   return (

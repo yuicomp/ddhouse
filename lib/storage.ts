@@ -9,6 +9,8 @@ const KEY = {
   SHOPS: 'ddh_shops',
   PRIZES: 'ddh_prizes',
   GAS_URL: 'ddh_gas_url',
+  SPREADSHEET_URL: 'ddh_spreadsheet_url',
+  STATS_DATE: 'ddh_stats_date',
   LOGGED_IN: 'ddh_logged_in',
   USER_ROLE: 'ddh_user_role',
 };
@@ -117,6 +119,19 @@ export function getGasUrl(): string {
 
 export function setGasUrl(url: string): void {
   localStorage.setItem(KEY.GAS_URL, url);
+}
+
+export function getSpreadsheetUrl(): string {
+  return localStorage.getItem(KEY.SPREADSHEET_URL) || '';
+}
+export function setSpreadsheetUrl(url: string): void {
+  localStorage.setItem(KEY.SPREADSHEET_URL, url);
+}
+export function getStatsDate(): string {
+  return localStorage.getItem(KEY.STATS_DATE) || '';
+}
+export function setStatsDate(date: string): void {
+  localStorage.setItem(KEY.STATS_DATE, date);
 }
 
 export function isLoggedIn(): boolean {

@@ -39,8 +39,13 @@ export default function SettingsPage() {
 
   const [labelInput, setLabelInput] = useState(deviceLabel);
   const [gasInput, setGasInput] = useState(gasUrl);
+  const [sheetInput, setSheetInput] = useState('');
   const [syncMsg, setSyncMsg] = useState('');
   const [saved, setSaved] = useState('');
+
+  useEffect(() => {
+    setSheetInput(localStorage.getItem('ddh_spreadsheet_url') || '');
+  }, []);
 
   // Shop edit state
   const [newShopName, setNewShopName] = useState('');
@@ -103,6 +108,10 @@ export default function SettingsPage() {
   function saveGas() {
     setGasUrl(gasInput.trim());
     flash('GAS URLを保存しました');
+  }
+  function saveSheet() {
+    localStorage.setItem('ddh_spreadsheet_url', sheetInput.trim());
+    flash('スプレッドシートURLを保存しました');
   }
   function flash(msg: string) {
     setSaved(msg);
@@ -213,6 +222,19 @@ export default function SettingsPage() {
             </button>
           </div>
           {syncMsg && <p className="text-sm text-brand-600 font-medium">{syncMsg}</p>}
+          <div className="border-t border-gray-100 pt-3">
+            <label className="text-xs text-gray-500 mb-1 block">スプレッドシートURL（リンクページ用）</label>
+            <div className="flex gap-2">
+              <input
+                value={sheetInput}
+                onChange={(e) => setSheetInput(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand-500 font-mono"
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                autoCapitalize="none"
+              />
+              <button onClick={saveSheet} className="bg-brand-600 text-white px-4 py-2 rounded-xl text-sm font-medium">保存</button>
+            </div>
+          </div>
         </div>
       </Section>
 
